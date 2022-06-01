@@ -4,13 +4,16 @@ from functools import partial
 from pathlib import Path
 from typing import Callable, Literal, Optional
 
+from chemprop.train import make_predictions
+from chemprop.args import PredictArgs
+#from chemprop.chemprop.train import predict
 import numpy as np
 import pandas as pd
 import torch
 import torch.nn.functional as F
 from scipy.stats import entropy
-from sklearnex import patch_sklearn
-patch_sklearn()
+# from sklearnex import patch_sklearn
+# patch_sklearn()
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.metrics import accuracy_score, precision_recall_fscore_support
 from sklearn.naive_bayes import BernoulliNB, MultinomialNB
@@ -194,7 +197,7 @@ def compute_score_roberta(text: str,
 def compute_stress_and_context_entropy_score(text: str,
                                              context_dependent: bool,
                                              stress_scoring_fn: Callable[[str], float],
-                                             context_entropy_scoring_fn: Callable[[str], float],
+                                             context_entropy_scoring_fn: (Callable[[str], float]),
                                              alpha: float) -> float:
     """Computes the combined stress and context entropy score of a piece of text.
 
@@ -313,11 +316,8 @@ def run_mcts(train_path: Path,
         )
 
         # Define stress scoring function
-        stress_scoring_fn = partial(
-            compute_score_sklearn,
-            count_vectorizer=stress_count_vectorizer,
-            model=stress_model,
-            score_type='prediction'
+        stress_scoring_fn = make_predictions(
+            args = PredictArgs,
         )
 
         print(f'Training and evaluating context (subreddit) {model_name.upper()} model')
@@ -452,7 +452,7 @@ if __name__ == '__main__':
         """The path to the CSV file containing the train text and labels."""
         test_path: Path
         """The path to the CSV file containing the test text and labels."""
-        model_name: MODEL_NAMES
+        model_name: MODEL_NAMES = 'bnb'
         """The name of the model to train."""
         save_path: Path
         """The path to a pickle file where the explanations will be saved."""
@@ -481,7 +481,7 @@ if __name__ == '__main__':
         """The maximum percent of words that are unmasked."""
         c_puct: float = 10.0
         """The hyperparameter that encourages exploration."""
-        num_expand_nodes: int = 10
+        num_expand_nodes: int = 10 #Increase Break chance maybe for this?
         """The number of MCTS nodes to expand when extending the child nodes in the search tree."""
 
     run_mcts(**Args().parse_args().as_dict())

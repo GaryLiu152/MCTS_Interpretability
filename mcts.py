@@ -2,17 +2,21 @@
 import math
 from functools import partial
 from random import Random
-from typing import Callable, List, Tuple
+from typing import Callable, Optional, List, Tuple
+from chemprop.train import make_predictions
+from chemprop.args import PredictArgs
+
 
 import numpy as np
+
 
 
 class MCTSNode:
     """A node in a Monte Carlo Tree Search representing one or more phrases in the text."""
 
     def __init__(self,
-                 words: Tuple[str],
-                 mask: Tuple[int],
+                 smiles: Tuple[str],
+                 mask: Optional[Tuple[int]], #Maybe this breaks something
                  c_puct: float,
                  W: float = 0.0,
                  N: int = 0,
@@ -26,7 +30,7 @@ class MCTSNode:
         :param N: The number of times of arrival at this node.
         :param P: The property score (reward) of this node.
         """
-        self.words = words
+        self.words = smiles
         self.mask = mask
         self.mask_array = np.array(mask)
         self.c_puct = c_puct
@@ -43,10 +47,10 @@ class MCTSNode:
         """Value that encourages exploration of nodes with few visits."""
         return self.c_puct * self.P * math.sqrt(n) / (1 + self.N)
 
-    @property
-    def percent_unmasked(self) -> float:
-        """Return the percent of words that are unmasked."""
-        return np.mean(self.mask_array)
+    # @property
+    # def percent_unmasked(self) -> float:
+    #     """Return the percent of words that are unmasked."""
+    #     return np.mean(self.mask_array)
 
 
 def get_phrases(mask: Tuple[int]) -> List[List[int]]:
@@ -69,7 +73,7 @@ def get_phrases(mask: Tuple[int]) -> List[List[int]]:
     return phrases
 
 
-def text_score(words: Tuple[str], mask: Tuple[int], scoring_fn: Callable[[str], float]) -> float:
+def chemprop_score(output_mol: Tuple[str], mask: Tuple[int], scoring_fn: Callable[[str], float]) -> float:
     """Computes the score of the masked text.
 
     :param words: The text of the example broken into a list of words.
@@ -77,14 +81,12 @@ def text_score(words: Tuple[str], mask: Tuple[int], scoring_fn: Callable[[str], 
     :param scoring_fn: A function that takes as input a string and returns a score.
     :return: The score of the model applied to the subgraph induced by the provided coalition of nodes.
     """
-    phrases = get_phrases(mask)
-    text_phrases = [' '.join(words[i] for i in phrase) for phrase in phrases]
-    scores = [scoring_fn(text_phrase) for text_phrase in text_phrases]
+    scores = [scoring_fn(smiles = output_mol)]
     score = np.mean(scores)
 
     return score
 
-
+#Is this simply the chemprop_score for us? 
 def get_best_mcts_node(results: List[MCTSNode], max_percent_unmasked: float) -> MCTSNode:
     """Get the MCTSNode with the highest reward (and smallest percent unmasked if tied)
        that has at most max_percent_unmasked unmasked words.
@@ -202,7 +204,7 @@ class MCTS:
             # For each child in the tree, compute its reward
             for child in tree_node.children:
                 if child.P == 0:
-                    child.P = text_score(words=child.words, mask=child.mask, scoring_fn=self.scoring_fn)
+                    child.P = chemprop_score(output_mol=child.words, mask=child.mask, scoring_fn=self.scoring_fn)
 
         # Select the best child node and unroll it
         sum_count = sum(child.N for child in tree_node.children)
@@ -260,14 +262,16 @@ class MCTSExplainer:
         self.c_puct = c_puct
         self.num_expand_nodes = num_expand_nodes
 
-    def explain(self, text: str, context_dependent: bool) -> List[MCTSNode]:
-        return MCTS(
-            text=text,
-            max_phrases=self.max_phrases,
-            min_phrase_length=self.min_phrase_length,
-            scoring_fn=partial(self.scoring_fn, context_dependent=context_dependent),
-            n_rollout=self.n_rollout,
-            min_percent_unmasked=self.min_percent_unmasked,
-            c_puct=self.c_puct,
-            num_expand_nodes=self.num_expand_nodes
-        ).run_mcts()
+    # def explain(self, text: str, context_dependent: bool) -> List[MCTSNode]:
+    #     return MCTS(
+    #         text=text,
+    #         max_phrases=self.max_phrases,
+    #         min_phrase_length=self.min_phrase_length,
+    #         scoring_fn=partial(self.scoring_fn, context_dependent=context_dependent),
+    #         n_rollout=self.n_rollout,
+    #         min_percent_unmasked=self.min_percent_unmasked,
+    #         c_puct=self.c_puct,
+    #         num_expand_nodes=self.num_expand_nodes
+    #     ).run_mcts()
+
+
